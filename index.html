@@ -132,7 +132,7 @@ img{display:block;max-width:100%}
 .bars .bar-row{display:grid;grid-template-columns:70px 1fr 28px;align-items:center;gap:10px;margin-bottom:9px}
 .bars .bar-lb{font-size:13px;color:var(--muted)}
 .bars .bar-track{height:9px;background:var(--bg);border-radius:6px;overflow:hidden;border:1px solid var(--line)}
-.bars .bar-fill{height:100%;background:linear-gradient(90deg,var(--gold-dim),var(--gold));border-radius:6px}
+.bars .bar-fill{display:block;height:100%;background:linear-gradient(90deg,var(--gold-dim),var(--gold));border-radius:6px}
 .bars .bar-vl{font-size:12px;color:var(--gold);text-align:right}
 .kv{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px dashed var(--line);font-size:14px}
 .kv:last-child{border-bottom:0}
@@ -186,8 +186,10 @@ details.story .lore{padding:0 0 18px;color:#D8CBAA;font-family:"Shippori Mincho 
 .skin-noimg{width:100%;aspect-ratio:308/560;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px;background:repeating-linear-gradient(135deg,var(--panel),var(--panel) 10px,var(--bg2) 10px,var(--bg2) 20px)}
 
 .videos{display:grid;gap:16px}
-.vid-embed{position:relative;padding-top:56.25%;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:#000}
-.vid-embed iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.videos .vid-embed{max-width:50%}
+@media(max-width:720px){.videos .vid-embed{max-width:100%}}
+.vid-embed{aspect-ratio:16/9;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:#000}
+.vid-embed iframe{display:block;width:100%;height:100%;border:0}
 .vid-search{display:inline-flex;align-items:center;gap:8px}
 .addrow{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
 .addrow input{flex:1;min-width:180px;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);font-size:13px}
@@ -779,25 +781,6 @@ async function renderDetail(id){
       <div class="tipbox ally"><h3>★ 使うときのコツ（自分）</h3>${tipList(c.allytips)}</div>
     </div></section>`));
 
-  /* 7. スキン一覧 */
-  const skins=(c.skins||[]).slice().sort((a,b)=>a.num-b.num);
-  const skinsHtml=skins.map(sk=>{
-    const nm = sk.name==="default" ? "オリジナル" : sk.name;
-    return `<div class="skin"><img loading="lazy" src="${imgLoading(id,sk.num)}" data-splash="${imgSplash(id,sk.num)}" alt="${escAttr(nm)}"><div class="sn">${esc(nm)}</div></div>`;
-  }).join("");
-  const skinSec=el(`<section class="section"><h2>スキン一覧 <span style="font-size:12px;color:var(--muted);font-weight:400">${skins.length}種</span></h2><div class="skins">${skinsHtml}</div></section>`);
-  skinSec.querySelectorAll(".skin img").forEach(img=>{
-    img.onerror=()=>{
-      img.onerror=()=>{
-        const tile=img.closest(".skin");
-        tile.classList.add("skin-missing");
-        img.replaceWith(el(`<div class="skin-noimg">画像なし</div>`));
-      };
-      img.src=img.dataset.splash;
-    };
-  });
-  root.appendChild(skinSec);
-
   /* 8. 解説動画 */
   const videoSec=el(`<section class="section"><h2>解説動画</h2><div id="videos"></div>
     <div class="addrow">
@@ -821,6 +804,25 @@ async function renderDetail(id){
       <div id="memo-mount"></div>
     </div></section>`);
   root.appendChild(editSec);
+
+  /* 11. スキン一覧（最後に表示） */
+  const skins=(c.skins||[]).slice().sort((a,b)=>a.num-b.num);
+  const skinsHtml=skins.map(sk=>{
+    const nm = sk.name==="default" ? "オリジナル" : sk.name;
+    return `<div class="skin"><img loading="lazy" src="${imgLoading(id,sk.num)}" data-splash="${imgSplash(id,sk.num)}" alt="${escAttr(nm)}"><div class="sn">${esc(nm)}</div></div>`;
+  }).join("");
+  const skinSec=el(`<section class="section"><h2>スキン一覧 <span style="font-size:12px;color:var(--muted);font-weight:400">${skins.length}種</span></h2><div class="skins">${skinsHtml}</div></section>`);
+  skinSec.querySelectorAll(".skin img").forEach(img=>{
+    img.onerror=()=>{
+      img.onerror=()=>{
+        const tile=img.closest(".skin");
+        tile.classList.add("skin-missing");
+        img.replaceWith(el(`<div class="skin-noimg">画像なし</div>`));
+      };
+      img.src=img.dataset.splash;
+    };
+  });
+  root.appendChild(skinSec);
 
   app().appendChild(root);
 
