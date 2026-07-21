@@ -44,9 +44,16 @@ img{display:block;max-width:100%}
 .brand .sub{font-family:"Shippori Mincho B1",serif;color:var(--text);font-size:13px;margin-left:8px;opacity:.7}
 .topbar .spacer{flex:1}
 .auth-area{display:flex;align-items:center;gap:8px}
-.auth-chip{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
-.auth-chip img{width:22px;height:22px;border-radius:50%;border:1px solid var(--gold-dim)}
-.auth-chip .sync-dot{color:var(--teal)}
+.auth-chip{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);min-width:0}
+.auth-chip img{width:22px;height:22px;border-radius:50%;border:1px solid var(--gold-dim);flex:none}
+.auth-chip .auth-name{max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.auth-chip .sync-dot{color:var(--teal);flex:none}
+@media(max-width:640px){
+  .topbar{flex-wrap:wrap;row-gap:8px}
+  .topbar .brand{flex:1 0 100%}
+  .topbar .spacer{display:none}
+  .auth-chip .auth-name{max-width:80px}
+}
 .btn{
   border:1px solid var(--gold-dim);background:linear-gradient(180deg,var(--panel2),var(--panel));
   color:var(--gold);padding:8px 14px;border-radius:10px;font-size:13px;font-weight:700;
@@ -73,6 +80,13 @@ img{display:block;max-width:100%}
 }
 .tab.active{background:var(--gold);color:var(--bg);border-color:var(--gold);font-weight:700}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:16px}
+@media(max-width:640px){
+  .grid{grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
+  .card .meta{padding:16px 8px 7px}
+  .card .nm{font-size:12.5px}
+  .card .tt{font-size:9.5px}
+  .card .learned{font-size:9px;padding:2px 6px;top:6px;right:6px}
+}
 .card{
   position:relative;border-radius:var(--radius);overflow:hidden;border:1px solid var(--line);
   background:var(--panel);aspect-ratio:4/5;text-align:left;padding:0;
@@ -147,7 +161,8 @@ img{display:block;max-width:100%}
 .dmg-AP{background:rgba(25,200,185,.18);color:var(--teal)}
 .dmg-ハイブリッド{background:rgba(200,170,110,.18);color:var(--gold)}
 
-table.stats{width:100%;border-collapse:collapse;font-size:14px}
+.table-scroll{overflow-x:auto}
+table.stats{width:100%;min-width:300px;border-collapse:collapse;font-size:14px}
 table.stats th,table.stats td{padding:9px 8px;border-bottom:1px solid var(--line);text-align:right}
 table.stats th:first-child,table.stats td:first-child{text-align:left;color:var(--muted)}
 table.stats thead th{color:var(--gold);font-size:12px;font-weight:700}
@@ -789,10 +804,10 @@ async function renderDetail(id){
     [`射程 (${rangeLabel(st.attackrange)})`, st.attackrange, st.attackrange],
   ].filter(r=>r[0]!=null);
   const statTable=el(`<section class="section"><h2>基礎ステータス <span style="font-size:12px;color:var(--muted);font-weight:400">Lv1 / Lv18 実数値</span></h2>
-    <div class="panel"><table class="stats">
+    <div class="panel"><div class="table-scroll"><table class="stats">
       <thead><tr><th>項目</th><th>Lv1</th><th>Lv18</th></tr></thead>
       <tbody>${rows.map(([lb,a,b])=>`<tr><td>${lb}</td><td>${a??"—"}</td><td>${b??"—"}</td></tr>`).join("")}</tbody>
-    </table></div></section>`);
+    </table></div></div></section>`);
   root.appendChild(statTable);
 
   /* 4. ストーリー */
@@ -947,7 +962,8 @@ function drawAuthArea(user){
   const box=document.getElementById("authArea");
   box.innerHTML="";
   if(user){
-    const chip=el(`<div class="auth-chip">${user.photoURL?`<img src="${escAttr(user.photoURL)}" alt="">`:""}<span>${esc(user.displayName||user.email||"ログイン中")}</span><span class="sync-dot" title="クラウド同期中">☁</span></div>`);
+    const uname=user.displayName||user.email||"ログイン中";
+    const chip=el(`<div class="auth-chip">${user.photoURL?`<img src="${escAttr(user.photoURL)}" alt="">`:""}<span class="auth-name" title="${escAttr(uname)}">${esc(uname)}</span><span class="sync-dot" title="クラウド同期中">☁</span></div>`);
     const out=el(`<button class="btn ghost small">ログアウト</button>`);
     out.onclick=()=>window.FB.signOut();
     box.appendChild(chip); box.appendChild(out);
