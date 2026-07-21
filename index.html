@@ -43,6 +43,10 @@ img{display:block;max-width:100%}
 .brand{font-family:"Cinzel",serif;font-weight:700;letter-spacing:.06em;font-size:19px;color:var(--gold);cursor:pointer;background:none;border:0;padding:0}
 .brand .sub{font-family:"Shippori Mincho B1",serif;color:var(--text);font-size:13px;margin-left:8px;opacity:.7}
 .topbar .spacer{flex:1}
+.auth-area{display:flex;align-items:center;gap:8px}
+.auth-chip{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.auth-chip img{width:22px;height:22px;border-radius:50%;border:1px solid var(--gold-dim)}
+.auth-chip .sync-dot{color:var(--teal)}
 .btn{
   border:1px solid var(--gold-dim);background:linear-gradient(180deg,var(--panel2),var(--panel));
   color:var(--gold);padding:8px 14px;border-radius:10px;font-size:13px;font-weight:700;
@@ -244,6 +248,7 @@ textarea.memo{width:100%;min-height:110px;padding:12px;border-radius:12px;border
 <header class="topbar">
   <button class="brand" id="brand">CODEX<span class="sub">LoLチャンピオン図鑑</span></button>
   <div class="spacer"></div>
+  <div id="authArea" class="auth-area"></div>
   <button class="btn ghost small" id="btn-import">読込</button>
   <button class="btn ghost small" id="btn-export">保存(書出)</button>
 </header>
@@ -252,6 +257,48 @@ textarea.memo{width:100%;min-height:110px;padding:12px;border-radius:12px;border
 
 <input type="file" id="file-import" accept="application/json,.json" class="sr-only">
 <div id="toast" class="toast" role="status"></div>
+
+<script>window.__fbReady=new Promise(r=>{window.__fbResolveReady=r;});</script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBE3Kv8acr-foNNTGNPoJxwB2OaeGiuyak",
+    authDomain: "lol-book.firebaseapp.com",
+    projectId: "lol-book",
+    storageBucket: "lol-book.firebasestorage.app",
+    messagingSenderId: "1022192323493",
+    appId: "1:1022192323493:web:b4cd099d9a1b36589c364c"
+  };
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const provider = new GoogleAuthProvider();
+  let currentUser = null;
+
+  window.FB = {
+    currentUser: () => currentUser,
+    signIn: () => signInWithPopup(auth, provider),
+    signOut: () => signOut(auth),
+    fetchRemote: async () => {
+      if (!currentUser) return null;
+      const snap = await getDoc(doc(db, "users", currentUser.uid));
+      return snap.exists() ? snap.data() : null;
+    },
+    pushRemote: async (data) => {
+      if (!currentUser) return;
+      try { await setDoc(doc(db, "users", currentUser.uid), data); }
+      catch (e) { console.error("Firestore sync failed", e); }
+    }
+  };
+  onAuthStateChanged(auth, (u) => {
+    currentUser = u;
+    window.dispatchEvent(new CustomEvent("fb-auth-changed", { detail: u }));
+  });
+  window.__fbResolveReady();
+</script>
 
 <script>
 "use strict";
@@ -311,7 +358,10 @@ const imgLoading=(id,n)=>`${DD}/cdn/img/champion/loading/${id}_${n}.jpg`;
 function emptyDex(){ return {version:1,champions:[],lanes:{},videos:{},notes:{},learned:{},laneNotes:{}}; }
 let mydex=emptyDex();
 
-function saveDex(){ localStorage.setItem(MYDEX_KEY,JSON.stringify(mydex)); }
+function saveDex(){
+  localStorage.setItem(MYDEX_KEY,JSON.stringify(mydex));
+  if(window.FB && window.FB.currentUser()) window.FB.pushRemote(mydex);
+}
 function normalizeDex(d){
   const e=emptyDex();
   if(d&&typeof d==="object"){
@@ -891,12 +941,57 @@ function toast(msg){
 }
 
 /* ============================================================
+   クラウド同期（Firebase Auth + Firestore）
+   ============================================================ */
+function drawAuthArea(user){
+  const box=document.getElementById("authArea");
+  box.innerHTML="";
+  if(user){
+    const chip=el(`<div class="auth-chip">${user.photoURL?`<img src="${escAttr(user.photoURL)}" alt="">`:""}<span>${esc(user.displayName||user.email||"ログイン中")}</span><span class="sync-dot" title="クラウド同期中">☁</span></div>`);
+    const out=el(`<button class="btn ghost small">ログアウト</button>`);
+    out.onclick=()=>window.FB.signOut();
+    box.appendChild(chip); box.appendChild(out);
+  } else {
+    const btn=el(`<button class="btn ghost small">☁ ログイン</button>`);
+    btn.onclick=async()=>{
+      try{ await window.__fbReady; await window.FB.signIn(); }
+      catch(e){ console.error(e); toast("ログインに失敗しました"); }
+    };
+    box.appendChild(btn);
+  }
+}
+let cloudSyncing=false;
+async function handleAuthChange(user){
+  drawAuthArea(user);
+  if(!user || cloudSyncing) return;
+  cloudSyncing=true;
+  try{
+    const remote=await window.FB.fetchRemote();
+    if(remote){
+      mydex=normalizeDex(remote);
+      localStorage.setItem(MYDEX_KEY,JSON.stringify(mydex));
+      toast("クラウドのデータを読み込みました");
+    } else {
+      await window.FB.pushRemote(mydex);
+      toast("クラウドに保存しました");
+    }
+    render();
+  }catch(e){
+    console.error(e);
+    toast("クラウド同期に失敗しました");
+  }
+  cloudSyncing=false;
+}
+window.addEventListener("fb-auth-changed", e=>handleAuthChange(e.detail));
+
+/* ============================================================
    起動
    ============================================================ */
 document.getElementById("brand").onclick=()=>{ location.hash="#/"; };
 document.getElementById("btn-export").onclick=exportDex;
 document.getElementById("btn-import").onclick=()=>document.getElementById("file-import").click();
 document.getElementById("file-import").onchange=e=>{ if(e.target.files[0]) importDexFromFile(e.target.files[0]); e.target.value=""; };
+drawAuthArea(null);
 
 (async function boot(){
   loadingView("起動中…");
