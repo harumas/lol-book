@@ -6,7 +6,7 @@
 <title>LoLチャンピオン図鑑</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Shippori+Mincho+B1:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 :root{
   --bg:#0A1428; --bg2:#0F1E38; --panel:#0E1C33; --panel2:#122544;
@@ -40,8 +40,7 @@ img{display:block;max-width:100%}
   background:rgba(10,20,40,.92);backdrop-filter:blur(8px);
   border-bottom:1px solid var(--line);
 }
-.brand{font-family:"Cinzel",serif;font-weight:700;letter-spacing:.06em;font-size:19px;color:var(--gold);cursor:pointer;background:none;border:0;padding:0}
-.brand .sub{font-family:"Shippori Mincho B1",serif;color:var(--text);font-size:13px;margin-left:8px;opacity:.7}
+.brand{font-family:"Shippori Mincho B1",serif;font-weight:700;font-size:17px;color:var(--gold);cursor:pointer;background:none;border:0;padding:0}
 .topbar .spacer{flex:1}
 .auth-area{display:flex;align-items:center;gap:8px}
 .auth-chip{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);min-width:0}
@@ -249,6 +248,8 @@ textarea.memo{width:100%;min-height:110px;padding:12px;border-radius:12px;border
 .errbox p{color:#F0A9A3;margin:0 0 18px}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--panel2);border:1px solid var(--gold);color:var(--text);padding:12px 20px;border-radius:12px;box-shadow:var(--shadow);z-index:80;opacity:0;transition:opacity .25s,transform .25s;font-size:14px}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.fab-memo{position:fixed;right:18px;bottom:86px;width:52px;height:52px;border-radius:50%;background:linear-gradient(180deg,#C8AA6E,#A17C3F);color:#1A1206;border:1px solid #C8AA6E;font-size:20px;box-shadow:var(--shadow);z-index:40;display:flex;align-items:center;justify-content:center;transition:transform .15s}
+.fab-memo:hover{transform:scale(1.08)}
 
 @media(prefers-reduced-motion:reduce){
   *{animation-duration:.001s!important;transition-duration:.001s!important}
@@ -261,7 +262,7 @@ textarea.memo{width:100%;min-height:110px;padding:12px;border-radius:12px;border
 <body>
 
 <header class="topbar">
-  <button class="brand" id="brand">CODEX<span class="sub">LoLチャンピオン図鑑</span></button>
+  <button class="brand" id="brand">LoLチャンピオン図鑑</button>
   <div class="spacer"></div>
   <div id="authArea" class="auth-area"></div>
   <button class="btn ghost small" id="btn-import">読込</button>
@@ -838,6 +839,16 @@ async function renderDetail(id){
   spells.forEach((s,i)=> skillsHtml+=skillCard(SPELL_KEYS[i]||("?"),s.name,cleanDesc(s.description),imgSpell(s.image.full),spellMeta(s)));
   root.appendChild(el(`<section class="section"><h2>スキル</h2><div class="skills">${skillsHtml}</div></section>`));
 
+  /* 補助データ編集（学習メモの上に表示） */
+  const editSec=el(`<section class="section"><h2>✎ 補助データ編集</h2>
+    <div class="panel">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:8px">レーン（複数選択可）</div>
+      <div class="lane-toggles" id="lanetg"></div>
+      <div style="font-size:13px;color:var(--muted);margin:14px 0 8px">自分用メモ</div>
+      <div id="memo-mount"></div>
+    </div></section>`);
+  root.appendChild(editSec);
+
   /* 6. 学習メモ (公式tips) */
   const tipList=arr=> (arr&&arr.length)? `<ul>${arr.map(t=>`<li>${esc(t)}</li>`).join("")}</ul>` : `<p class="none">（データなし）</p>`;
   root.appendChild(el(`<section class="section"><h2>学習メモ</h2>
@@ -860,16 +871,6 @@ async function renderDetail(id){
     <div class="links">${links.map(l=>`<a class="linkbtn" href="${l.url}" target="_blank" rel="noopener"><span class="lname">${l.name} ↗</span><span class="luse">${l.use}</span></a>`).join("")}</div>
   </section>`));
 
-  /* 10. 補助データ編集 */
-  const editSec=el(`<section class="section"><h2>✎ 補助データ編集</h2>
-    <div class="panel">
-      <div style="font-size:13px;color:var(--muted);margin-bottom:8px">レーン（複数選択可）</div>
-      <div class="lane-toggles" id="lanetg"></div>
-      <div style="font-size:13px;color:var(--muted);margin:14px 0 8px">自分用メモ</div>
-      <div id="memo-mount"></div>
-    </div></section>`);
-  root.appendChild(editSec);
-
   /* 11. スキン一覧（最後に表示） */
   const skins=(c.skins||[]).slice().sort((a,b)=>a.num-b.num);
   const skinsHtml=skins.map(sk=>{
@@ -888,6 +889,16 @@ async function renderDetail(id){
     };
   });
   root.appendChild(skinSec);
+
+  /* メモへジャンプ（フローティングボタン） */
+  const fab=el(`<button class="fab-memo" title="自分用メモへ移動" aria-label="自分用メモへ移動">✎</button>`);
+  fab.onclick=()=>{
+    const mount=document.getElementById("memo-mount");
+    mount.scrollIntoView({behavior:"smooth", block:"center"});
+    const editBtn=mount.querySelector(".memo-edit-btn");
+    if(editBtn) setTimeout(()=>editBtn.click(), 400);
+  };
+  root.appendChild(fab);
 
   app().appendChild(root);
 
