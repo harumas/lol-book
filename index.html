@@ -342,21 +342,29 @@ const norm=s=>(s||"").normalize("NFKC").toLowerCase()
    ============================================================ */
 const state={ ver:null, list:null, detailCache:new Map() };
 
-async function getJSON(url){
-  const r=await fetch(url,{cache:"no-cache"});
+// バージョン付きURLの中身は不変なので force-cache（2回目以降はディスクキャッシュから即返る）。
+// 可変なもの（versions.json / mydex.json）だけ no-cache で鮮度を取る。
+async function getJSON(url,cache="force-cache"){
+  const r=await fetch(url,{cache});
   if(!r.ok) throw new Error("HTTP "+r.status+" : "+url);
   return r.json();
 }
-async function init(){
+// 最新パッチの取得だけ。詳細ページはこれだけあれば描ける
+async function initVersion(){
   if(state.ver) return;
-  const vers=await getJSON(`${DD}/api/versions.json`);
+  const vers=await getJSON(`${DD}/api/versions.json`,"no-cache");
   state.ver=vers[0];
+}
+// 一覧ページ／追加ピッカー用の全チャンピオン概要（約220KB）
+async function init(){
+  await initVersion();
+  if(state.list) return;
   const cj=await getJSON(`${DD}/cdn/${state.ver}/data/${LOCALE}/champion.json`);
   state.list=cj.data; // { id: {id,key,name,title,tags,image,info,...} }
 }
 async function getDetail(id){
   if(state.detailCache.has(id)) return state.detailCache.get(id);
-  await init();
+  await initVersion();
   const d=await getJSON(`${DD}/cdn/${state.ver}/data/${LOCALE}/champion/${id}.json`);
   const champ=d.data[id];
   state.detailCache.set(id,champ);
@@ -375,10 +383,22 @@ const imgLoading=(id,n)=>`${DD}/cdn/img/champion/loading/${id}_${n}.jpg`;
 function emptyDex(){ return {version:1,champions:[],lanes:{},videos:{},notes:{},learned:{},laneNotes:{}}; }
 let mydex=emptyDex();
 
-function saveDex(){
-  localStorage.setItem(MYDEX_KEY,JSON.stringify(mydex));
+// localStorageへは即時。クラウドへは連続操作をまとめて1回だけ書く（離脱時は即フラッシュ）
+let pushTimer=null;
+function flushRemote(){
+  if(!pushTimer) return;
+  clearTimeout(pushTimer); pushTimer=null;
   if(window.FB && window.FB.currentUser()) window.FB.pushRemote(mydex);
 }
+function saveDex(){
+  localStorage.setItem(MYDEX_KEY,JSON.stringify(mydex));
+  if(window.FB && window.FB.currentUser()){
+    clearTimeout(pushTimer);
+    pushTimer=setTimeout(()=>{ pushTimer=null; window.FB.pushRemote(mydex); },800);
+  }
+}
+window.addEventListener("pagehide",flushRemote);
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="hidden") flushRemote(); });
 function normalizeDex(d){
   const e=emptyDex();
   if(d&&typeof d==="object"){
@@ -396,7 +416,7 @@ async function loadDex(){
   if(raw){ try{ mydex=normalizeDex(JSON.parse(raw)); return; }catch(e){} }
   // localStorageが空なら repo の mydex.json を試す（同一オリジン）
   try{
-    const d=await getJSON("mydex.json");
+    const d=await getJSON("mydex.json","no-cache");
     mydex=normalizeDex(d); saveDex();
   }catch(e){ mydex=emptyDex(); }
 }
@@ -738,7 +758,7 @@ function openPicker(){
 async function renderDetail(id){
   loadingView(`${state.list?.[id]?.name||id} を読み込み中…`);
   let c;
-  try{ await init(); c=await getDetail(id); }
+  try{ c=await getDetail(id); }
   catch(e){ return errorView("チャンピオン情報の取得に失敗しました。",()=>renderDetail(id)); }
 
   window.scrollTo(0,0);
@@ -1023,9 +1043,8 @@ drawAuthArea(null);
 
 (async function boot(){
   loadingView("起動中…");
-  try{ await init(); }catch(e){ /* 一覧描画側で再試行を出す */ }
   await loadDex();
-  render();
+  render(); // 必要なデータは render 先（一覧=全件概要 / 詳細=そのIDのみ）で遅延取得
 })();
 </script>
 
